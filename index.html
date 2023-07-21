@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profile transfer demo</title>
+    <link rel="stylesheet" href="bulma.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <h1 class="title">Profile Editor</h1>
+
+            <div class="box">
+                <h2 class="subtitle">All Profiles</h2>
+                <button id="getFiles" class="button is-info">Refresh Profile List</button>
+                <ul id="fileList" class="content"></ul>
+            </div>
+
+            <div class="box">
+                <h2 class="subtitle">Edit the Profile</h2>
+                <textarea id="fileContent" class="textarea" rows="10"></textarea>
+                <button id="saveFile" class="button is-success">Save Changes</button>
+            </div>
+
+            <div class="box">
+                <h2 class="subtitle">Delete the Profile</h2>
+                <button id="deleteFile" class="button is-danger">Delete Selected Profile</button>
+            </div>
+        </div>
+    </section>
+
+    <script src="main.js"></script>
+</body>
+</html>
