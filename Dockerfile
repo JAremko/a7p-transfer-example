@@ -46,10 +46,12 @@ WORKDIR /root/
 
 # Copy the executable from the builder stage
 COPY --from=builder /app/main .
+COPY --from=builder /certs /certs
 COPY index.html .
 COPY main.js .
 COPY bulma.css .
-COPY --from=builder /certs /certs
+COPY monokai-sublime.min.css .
+COPY highlight.min.js .
 
 # Expose port 443 to the outside
 EXPOSE 443
