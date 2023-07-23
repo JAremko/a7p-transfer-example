@@ -4,9 +4,14 @@ const saveFileButton = document.getElementById('saveFile');
 const saveFileAsButton = document.getElementById('saveFileAs');
 const newFileNameInput = document.getElementById('newFileName');
 const fileList = document.getElementById('fileList');
-const fileContent = document.getElementById('fileContent');
+const fileContentNonEditable = document.getElementById('fileContentNonEditable');
+const fileContentEditable = document.getElementById('fileContentEditable');
 
 let selectedFile = null;
+
+// Let's define your two transform functions here, for now they are identity functions
+const transformToEditable = (json) => json;
+const transformFromEditable = (json) => json;
 
 const getFiles = async () => {
   const response = await fetch('/filelist');
@@ -20,8 +25,10 @@ const getFiles = async () => {
     };
     fileList.appendChild(listItem);
   }
-  // Select first file by default
-  if (files.length > 0) {
+  // Re-select the current file, if it's still in the list
+  if (files.includes(selectedFile)) {
+    setSelectedFile(selectedFile);
+  } else if (files.length > 0) {
     setSelectedFile(files[0]);
   }
 };
@@ -30,8 +37,12 @@ const setSelectedFile = async (file) => {
   selectedFile = file;
   const response = await fetch(`/files?filename=${selectedFile}`);
   const data = await response.json();
-  fileContent.textContent = JSON.stringify(data, null, 2); // Set text content
-  hljs.highlightElement(fileContent); // Apply highlighting
+  fileContentNonEditable.textContent = JSON.stringify(data, null, 2); // Set text content
+  hljs.highlightElement(fileContentNonEditable); // Apply highlighting
+
+  const editableContent = transformToEditable(data);
+  fileContentEditable.textContent = JSON.stringify(editableContent, null, 2); // Set text content
+  hljs.highlightElement(fileContentEditable); // Apply highlighting
 
   // Highlight active file in the list
   for (let li of fileList.children) {
@@ -41,6 +52,14 @@ const setSelectedFile = async (file) => {
       li.classList.remove('active');
     }
   }
+};
+
+// Update non-editable content when editable content changes
+fileContentEditable.oninput = () => {
+  const editableContentJson = JSON.parse(fileContentEditable.textContent);
+  const nonEditableContent = transformFromEditable(editableContentJson);
+  fileContentNonEditable.textContent = JSON.stringify(nonEditableContent, null, 2); // Set text content
+  hljs.highlightElement(fileContentNonEditable); // Apply highlighting
 };
 
 getFilesButton.onclick = getFiles;
@@ -68,7 +87,7 @@ saveFileButton.onclick = async () => {
 
   let fileContentJson;
   try {
-    fileContentJson = JSON.parse(fileContent.textContent);
+    fileContentJson = JSON.parse(fileContentNonEditable.textContent);
   } catch (e) {
     alert('Invalid JSON content');
     return;
@@ -83,7 +102,7 @@ saveFileButton.onclick = async () => {
   });
   if (response.ok) {
     alert(`Saved changes to ${selectedFile}`);
-    getFiles();
+    getFiles(); // Get the files but will not reset the selection
   } else {
     alert('Failed to save file');
   }
@@ -98,7 +117,7 @@ saveFileAsButton.onclick = async () => {
 
   let fileContentJson;
   try {
-    fileContentJson = JSON.parse(fileContent.textContent);
+    fileContentJson = JSON.parse(fileContentNonEditable.textContent);
   } catch (e) {
     alert('Invalid JSON content');
     return;
@@ -113,11 +132,12 @@ saveFileAsButton.onclick = async () => {
   });
   if (response.ok) {
     alert(`Saved as ${newFileName}`);
-    getFiles();
+    selectedFile = newFileName; // Select the new file
+    getFiles(); // Refresh the file list
   } else {
     alert('Failed to save file');
   }
 };
 
-// Call getFiles on page load
-window.onload = getFiles;
+// Fetch files on page load
+getFiles();
