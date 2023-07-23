@@ -9,9 +9,9 @@ const fileContentEditable = document.getElementById('fileContentEditable');
 
 let selectedFile = null;
 
-// Let's define your two transform functions here, for now they are identity functions
-const transformToEditable = (json) => json;
-const transformFromEditable = (json) => json;
+// Let's define your two web worker pipelines here
+const transformToEditableWorker = new Worker('transformToEditableWorker.js');
+const transformFromEditableWorker = new Worker('transformFromEditableWorker.js');
 
 const getFiles = async () => {
   const response = await fetch('/filelist');
@@ -40,9 +40,13 @@ const setSelectedFile = async (file) => {
   fileContentNonEditable.textContent = JSON.stringify(data, null, 2); // Set text content
   hljs.highlightElement(fileContentNonEditable); // Apply highlighting
 
-  const editableContent = transformToEditable(data);
-  fileContentEditable.textContent = JSON.stringify(editableContent, null, 2); // Set text content
-  hljs.highlightElement(fileContentEditable); // Apply highlighting
+  // Using the transformToEditableWorker web worker
+  transformToEditableWorker.postMessage(data);
+  transformToEditableWorker.onmessage = event => {
+    const editableContent = event.data;
+    fileContentEditable.textContent = JSON.stringify(editableContent, null, 2); // Set text content
+    hljs.highlightElement(fileContentEditable); // Apply highlighting
+  };
 
   // Highlight active file in the list
   for (let li of fileList.children) {
@@ -57,9 +61,14 @@ const setSelectedFile = async (file) => {
 // Update non-editable content when editable content changes
 fileContentEditable.oninput = () => {
   const editableContentJson = JSON.parse(fileContentEditable.textContent);
-  const nonEditableContent = transformFromEditable(editableContentJson);
-  fileContentNonEditable.textContent = JSON.stringify(nonEditableContent, null, 2); // Set text content
-  hljs.highlightElement(fileContentNonEditable); // Apply highlighting
+
+  // Using the transformFromEditableWorker web worker
+  transformFromEditableWorker.postMessage(editableContentJson);
+  transformFromEditableWorker.onmessage = event => {
+    const nonEditableContent = event.data;
+    fileContentNonEditable.textContent = JSON.stringify(nonEditableContent, null, 2); // Set text content
+    hljs.highlightElement(fileContentNonEditable); // Apply highlighting
+  };
 };
 
 getFilesButton.onclick = getFiles;
