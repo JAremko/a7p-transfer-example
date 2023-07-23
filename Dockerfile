@@ -52,6 +52,9 @@ COPY main.js .
 COPY bulma.css .
 COPY monokai-sublime.min.css .
 COPY highlight.min.js .
+COPY transformFromEditableWorker.js .
+COPY transformToEditableWorker.js .
+COPY favicon.ico .
 
 # Expose port 443 to the outside
 EXPOSE 443
