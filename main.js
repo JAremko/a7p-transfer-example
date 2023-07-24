@@ -10,8 +10,8 @@ const fileContentEditable = document.getElementById('fileContentEditable');
 let selectedFile = null;
 
 // Let's define your two web worker pipelines here
-const transformToEditableWorker = new Worker('transformToEditableWorker.js');
-const transformFromEditableWorker = new Worker('transformFromEditableWorker.js');
+const transformToEditableWorker = new Worker('transform-to-editable-worker.js');
+const transformFromEditableWorker = new Worker('transform-from-editable-worker.js');
 
 const getFiles = async () => {
   const response = await fetch('/filelist');

@@ -24,7 +24,7 @@ func jsonToProto(jsonStr string, pb proto.Message) error {
 }
 
 func protoToJson(pb proto.Message) (string, error) {
-	marshaler := jsonpb.Marshaler{}
+	marshaler := jsonpb.Marshaler{EmitDefaults: true}
 	return marshaler.MarshalToString(pb)
 }
 
