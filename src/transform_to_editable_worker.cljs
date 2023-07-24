@@ -1,13 +1,19 @@
-(ns transform-to-editable-worker)
+(ns transform-to-editable-worker
+  (:require [cljs.reader :as reader]))
 
-(defn identity-xf [x]
+(defn process-data [x]
+  ;; This is a placeholder for your data processing function.
+  ;; Update this function with your actual data processing logic.
   x)
 
 (defn on-message [event]
   (when event
-    (js/console.log "Received message in worker: " (.-data event)) ;; added logging
     (let [data (.-data event)
-          result (identity-xf data)]
+          edn-str (pr-str data) ;; Convert JavaScript object to EDN string
+          edn-data (reader/read-string edn-str) ;; Convert EDN string to ClojureScript data structure
+          processed-data (process-data edn-data) ;; Process the data
+          result (reader/read-string (pr-str processed-data))] ;; Convert the processed data back to a JavaScript object
+      (js/console.log "Received message in worker: " data) ;; added logging
       (.postMessage js/self result))))
 
 (set! (.-onmessage js/self) on-message)
