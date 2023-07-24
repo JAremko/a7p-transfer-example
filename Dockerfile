@@ -66,7 +66,7 @@ COPY src ./src
 COPY shadow-cljs.edn ./
 
 # Build the JavaScript workers using shadow-cljs
-RUN npx shadow-cljs compile transform-to-editable-worker transform-from-editable-worker
+RUN npx shadow-cljs release transform-to-editable-worker transform-from-editable-worker
 
 # executable image
 FROM ubuntu:latest
@@ -84,7 +84,6 @@ COPY highlight.min.js .
 # Copy worker JavaScript files
 COPY --from=node-builder /app/public/js/transform-to-editable-worker.js .
 COPY --from=node-builder /app/public/js/transform-from-editable-worker.js .
-COPY --from=node-builder /app/public/js/cljs-runtime ./cljs-runtime
 COPY favicon.ico .
 
 # Expose port 443 to the outside

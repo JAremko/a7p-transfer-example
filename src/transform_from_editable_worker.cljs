@@ -1,12 +1,13 @@
 (ns transform-from-editable-worker)
 
-(defn identity [x]
+(defn identity-xf [x]
   x)
 
 (defn on-message [event]
-  (js/console.log "Received message in worker: " (.-data event)) ;; added logging
-  (let [data (.-data event)
-        result (identity data)]
-    (self.postMessage result)))
+  (when event
+    (js/console.log "Received message in worker: " (.-data event)) ;; added logging
+    (let [data (.-data event)
+          result (identity-xf data)]
+      (.postMessage js/self result))))
 
 (set! (.-onmessage js/self) on-message)

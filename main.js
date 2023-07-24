@@ -40,7 +40,7 @@ const setSelectedFile = async (file) => {
   fileContentNonEditable.textContent = JSON.stringify(data, null, 2); // Set text content
   hljs.highlightElement(fileContentNonEditable); // Apply highlighting
 
-  // Using the transformToEditableWorker web worker
+  // Only post the message once we have the data
   transformToEditableWorker.postMessage(data);
   transformToEditableWorker.onmessage = event => {
     const editableContent = event.data;
