@@ -103,41 +103,57 @@
                                   ::b-diameter
                                   ::b-weight
                                   ::b-length
-                                  ::coef-g1
+                                  ::bc-type]
+
+                         :opt-un [::coef-g1
                                   ::coef-g7
-                                  ::coef-custom
-                                  ::bc-type]))
+                                  ::coef-custom]))
 
 (s/def ::payload (s/keys :req-un [::profile]))
 
 (def powers-of-ten
-  {::distance 2
-   ::zero-x 3
-   ::zero-y 3
-   ::sc-height 0
-   ::r-twist 2
-   ::c-muzzle-velocity 1
-   ::c-zero-temperature 0
-   ::c-t-coeff 3
-   ::c-zero-air-temperature 0
-   ::c-zero-air-pressure 1
-   ::c-zero-air-humidity 0
-   ::c-zero-w-pitch 2
-   ::c-zero-p-temperature 0
-   ::b-diameter 3
-   ::b-weight 1
-   ::b-length 3
-   ::bc 4
-   ::mv 1
-   ::cd 4
-   ::ma 4
-   :distances 2})
+  {:distance 2
+   :zero-x 3
+   :zero-y 3
+   :sc-height 0
+   :r-twist 2
+   :c-muzzle-velocity 1
+   :c-zero-temperature 0
+   :c-t-coeff 3
+   :c-zero-air-temperature 0
+   :c-zero-air-pressure 1
+   :c-zero-air-humidity 0
+   :c-zero-w-pitch 2
+   :c-zero-p-temperature 0
+   :b-diameter 3
+   :b-weight 1
+   :b-length 3
+   :bc 4
+   :mv 1
+   :cd 4
+   :ma 4
+   :distances 2
+   :coef-g1 4
+   :coef-g7 4
+   :coef-custom 4})
+
+(declare adjust-map)
+
+(defn- adjust-vector-of-maps [v op]
+  (mapv #(adjust-map % op) v))
 
 (defn- adjust-value [k v op]
-  (let [power (powers-of-ten k)]
+  (let [power (powers-of-ten (-> k name clojure.string/lower-case keyword))]
     (cond
-      (and power (vector? v)) (mapv #(op % (Math/pow 10 power)) v)
-      power (op v (Math/pow 10 power))
+      (and power (vector? v) (map? (first v)))
+      (adjust-vector-of-maps v op)
+
+      (and power (vector? v))
+      (mapv #(op % (Math/pow 10 power)) v)
+
+      power
+      (op v (Math/pow 10 power))
+
       :else v)))
 
 (defn- adjust-map [m op]
@@ -152,6 +168,7 @@
   (walk/postwalk
     (fn [x] (if (map? x) (adjust-map x /) x))
     m))
+
 
 (defn dissoc-in [m [k & ks]]
   (if ks
