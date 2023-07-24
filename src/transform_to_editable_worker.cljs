@@ -157,7 +157,8 @@
       :else v)))
 
 (defn- adjust-map [m op]
-  (reduce-kv (fn [acc k v] (assoc acc k (adjust-value k v op))) {} m))
+  (-> (reduce-kv (fn [acc k v] (assoc acc k (adjust-value k v op))) {} m)
+      (update :caliber (fn [caliber] (if (clojure.string/blank? caliber) "???" caliber)))))
 
 (defn walk-multiply [m]
   (walk/postwalk
@@ -178,9 +179,7 @@
     (dissoc m k)))
 
 (defn process-data [x]
-  ;; This is a placeholder for your data processing function.
-  ;; Update this function with your actual data processing logic.
-  (js/console.log "Received message in worker: " (str x)) ;; added logging
+  #_ (js/console.log "Received message in worker: " (str x))
   x)
 
 (defn specific-mapping [data]

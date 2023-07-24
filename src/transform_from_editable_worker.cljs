@@ -157,7 +157,8 @@
       :else v)))
 
 (defn- adjust-map [m op]
-  (reduce-kv (fn [acc k v] (assoc acc k (adjust-value k v op))) {} m))
+  (-> (reduce-kv (fn [acc k v] (assoc acc k (adjust-value k v op))) {} m)
+      (update :caliber (fn [caliber] (if (clojure.string/blank? caliber) "???" caliber)))))
 
 (defn walk-multiply [m]
   (walk/postwalk
@@ -178,9 +179,7 @@
     (dissoc m k)))
 
 (defn process-data [x]
-  ;; This is a placeholder for your data processing function.
-  ;; Update this function with your actual data processing logic.
-  (js/console.log "Received message in worker: " (str x)) ;; added logging
+  #_ (js/console.log "Received message in worker: " (str x))
   x)
 
 (defn specific-mapping [data]
@@ -243,16 +242,17 @@
           edn-data (cljs.core/js->clj data :keywordize-keys true) ;; Convert JavaScript object to ClojureScript data structure with keywordized keys
           kebab-case-data (cske/transform-keys csk/->kebab-case-keyword edn-data) ;; Convert keys to kebab-case
           mapped-data (specific-mapping kebab-case-data) ;; Apply specific mappings
-          denormalized-data (walk-multiply mapped-data)
-          valid? (s/valid? ::payload denormalized-data)]
+          valid? (s/valid? ::payload mapped-data)] ;; Validate before walk-multiply
       (if valid?
-        (let [processed-data (process-data denormalized-data) ;; Process the data
+        (let [denormalized-data (walk-multiply mapped-data) ;; Apply walk-multiply only on valid data
+              processed-data (process-data denormalized-data) ;; Process the data
               post-processed-data (reverse-mapping processed-data) ;; Apply reverse mappings to processed data
               camelCase-data (cske/transform-keys csk/->camelCaseKeyword post-processed-data) ;; Convert keys back to camelCase
               result (cljs.core/clj->js camelCase-data)] ;; Convert the processed data back to a JavaScript object
           (.postMessage js/self result))
-        (let [report (s/explain-data ::payload denormalized-data)
+        (let [report (s/explain-data ::payload mapped-data) ;; Generate report on invalid data
               result (cljs.core/clj->js report)]
           (.postMessage js/self result))))))
 
 (set! (.-onmessage js/self) on-message)
+
