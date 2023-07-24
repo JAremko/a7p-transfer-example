@@ -102,9 +102,8 @@
                                   ::b-diameter
                                   ::b-weight
                                   ::b-length
-                                  ::bc-type]
-
-                         :opt-un [::coef-g1
+                                  ::bc-type
+                                  ::coef-g1
                                   ::coef-g7
                                   ::coef-custom]))
 
@@ -187,56 +186,65 @@
       m)
     (dissoc m k)))
 
-(defn specific-mapping [data]
+
+(defn- map-bc-type [data]
   (let [bc-type-mapping {"G1" :g1, "G7" :g7, "CUSTOM" :custom}
-        distance-from-mapping {"VALUE" :value, "INDEX" :index}
-        twist-dir-mapping {"RIGHT" :right, "LEFT" :left}
-        bc-type (get bc-type-mapping (get-in data [:profile :bc-type]))
+        bc-type (get bc-type-mapping (get-in data [:profile :bc-type]))]
+    (assoc-in data [:profile :bc-type] bc-type)))
+
+
+(defn- map-switches [data]
+  (let [distance-from-mapping {"VALUE" :value, "INDEX" :index}
         switches (mapv
                    (fn [m]
                      (assoc m :distance-from
                             (get distance-from-mapping
                                  (:distance-from m)
                                  (:distance-from m))))
-                   (get-in data [:profile :switches]))
-        twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))
-        coef-rows (mapv
-                    (fn [m]
-                      (case bc-type
-                        :g1 {:bc (m :first) :mv (m :second)}
-                        :g7 {:bc (m :first) :mv (m :second)}
-                        :custom {:cd (m :first) :ma (m :second)}))
-                    (get-in data [:profile :coef-rows]))]
-    (-> data
-        (assoc-in [:profile :bc-type] bc-type)
-        (assoc-in [:profile :switches] switches)
-        (assoc-in [:profile :twist-dir] twist-dir)
-        (assoc-in [:profile (keyword (str "coef-" (name bc-type)))] coef-rows)
-        (dissoc-in [:profile :coef-rows]))))
+                   (get-in data [:profile :switches]))]
+    (assoc-in data [:profile :switches] switches)))
+
+
+(defn- map-twist-dir [data]
+  (let [twist-dir-mapping {"RIGHT" :right, "LEFT" :left}
+        twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))]
+    (assoc-in data [:profile :twist-dir] twist-dir)))
+
+
+(defn specific-mapping [data]
+  (-> data
+      map-bc-type
+      map-switches
+      map-twist-dir))
+
+
+(defn- reverse-map-bc-type [data]
+  (let [bc-type-mapping {:g1 "G1", :g7 "G7", :custom "CUSTOM"}
+        bc-type (get bc-type-mapping (get-in data [:profile :bc-type]))]
+    (assoc-in data [:profile :bc-type] bc-type)))
+
+
+(defn- reverse-map-switches [data]
+  (let [distance-from-mapping {:value "VALUE", :index "INDEX"}
+        switches (mapv
+                   (fn [m]
+                     (assoc m :distance-from
+                            (get distance-from-mapping
+                                 (:distance-from m)
+                                 (:distance-from m))))
+                   (get-in data [:profile :switches]))]
+    (assoc-in data [:profile :switches] switches)))
+
+
+(defn- reverse-map-twist-dir [data]
+  (let [twist-dir-mapping {:right "RIGHT", :left "LEFT"}
+        twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))]
+    (assoc-in data [:profile :twist-dir] twist-dir)))
+
 
 (defn reverse-mapping [data]
-  (let [bc-type-mapping {:g1 "G1", :g7 "G7", :custom "CUSTOM"}
-        distance-from-mapping {:value "VALUE", :index "INDEX"}
-        twist-dir-mapping {:right "RIGHT", :left "LEFT"}
-        bc-type (get bc-type-mapping (get-in data [:profile :bc-type]))
-        switches (mapv
-                   (fn [m]
-                     (assoc m :distance-from
-                            (get distance-from-mapping
-                                 (:distance-from m)
-                                 (:distance-from m))))
-                   (get-in data [:profile :switches]))
-        twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))
-        coef-rows (mapv
-                    (fn [m]
-                      (case bc-type
-                        :g1 {:first (m :bc) :second (m :mv)}
-                        :g7 {:first (m :bc) :second (m :mv)}
-                        :custom {:first (m :cd) :second (m :ma)}))
-                    (get-in data [:profile (keyword (str "coef-" (name bc-type)))]))]
-    (-> data
-        (assoc-in [:profile :bc-type] bc-type)
-        (assoc-in [:profile :switches] switches)
-        (assoc-in [:profile :twist-dir] twist-dir)
-        (assoc-in [:profile :coef-rows] coef-rows)
-        (dissoc-in [:profile (keyword (str "coef-" (name bc-type)))]))))
+  (-> data
+      reverse-map-bc-type
+      reverse-map-switches
+      reverse-map-twist-dir))
+
