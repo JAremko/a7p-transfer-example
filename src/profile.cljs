@@ -4,6 +4,7 @@
             [cljs.spec.alpha :as s]
             [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
+            [clojure.set :refer [rename-keys]]
             [clojure.walk :as walk]))
 
 ;; Basic specs
@@ -210,14 +211,6 @@
         twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))]
     (assoc-in data [:profile :twist-dir] twist-dir)))
 
-
-(defn specific-mapping [data]
-  (-> data
-      map-bc-type
-      map-switches
-      map-twist-dir))
-
-
 (defn- reverse-map-bc-type [data]
   (let [bc-type-mapping {:g1 "G1", :g7 "G7", :custom "CUSTOM"}
         bc-type (get bc-type-mapping (get-in data [:profile :bc-type]))]
@@ -235,16 +228,57 @@
                    (get-in data [:profile :switches]))]
     (assoc-in data [:profile :switches] switches)))
 
-
 (defn- reverse-map-twist-dir [data]
   (let [twist-dir-mapping {:right "RIGHT", :left "LEFT"}
         twist-dir (get twist-dir-mapping (get-in data [:profile :twist-dir]))]
     (assoc-in data [:profile :twist-dir] twist-dir)))
 
+(defn replace-bc-table-keys [bc-type bc-table]
+  (mapv (fn [m]
+          (case bc-type
+            :g1 (rename-keys m {:first :bc :second :mv})
+            :g7 (rename-keys m {:first :bc :second :mv})
+            :custom (rename-keys m {:first :cd :second :ma})))
+        bc-table))
+
+
+(defn replace-bc-table-keys-reverse [bc-table]
+  (mapv (fn [m]
+          (cond
+            (and (:bc m) (:mv m)) (rename-keys m {:bc :first, :mv :second})
+            (and (:cd m) (:ma m)) (rename-keys m {:cd :first, :ma :second})))
+        bc-table))
+
+
+(defn specific-mapping [data]
+  (let [data (-> data
+                 map-bc-type
+                 map-switches
+                 map-twist-dir)
+        bc-type (get-in data [:profile :bc-type])
+        coef-rows (get-in data [:profile :coef-rows])
+        renamed-coef-rows (replace-bc-table-keys bc-type coef-rows)]
+    (-> data
+        (assoc-in [:profile :coef-g1] (if (= bc-type :g1) renamed-coef-rows []))
+        (assoc-in [:profile :coef-g7] (if (= bc-type :g7) renamed-coef-rows []))
+        (assoc-in [:profile :coef-custom] (if (= bc-type :custom) renamed-coef-rows []))
+        (dissoc-in [:profile :coef-rows]))))
+
 
 (defn reverse-mapping [data]
-  (-> data
-      reverse-map-bc-type
-      reverse-map-switches
-      reverse-map-twist-dir))
+  (let [bc-type (get-in data [:profile :bc-type])
+        coef-key (keyword (str "coef-" (name bc-type)))]
+    (-> data
+        (update :profile (fn [profile]
+                           (let [coef-rows (get profile coef-key)
+                                 renamed-coef-rows (replace-bc-table-keys-reverse coef-rows)]
+                             (-> profile
+                                 (assoc :coef-rows renamed-coef-rows)
+                                 (dissoc :coef-g1 :coef-g7 :coef-custom)))))
+        reverse-map-bc-type
+        reverse-map-switches
+        reverse-map-twist-dir)))
+
+
+
 
