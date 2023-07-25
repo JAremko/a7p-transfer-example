@@ -3,9 +3,14 @@
             [profile]
             [cljs.spec.alpha :as s]))
 
-(wu/set-handler
-  profile/specific-mapping
-  identity
-  profile/walk-multiply
-  (partial s/valid? ::profile/payload)
-  profile/reverse-mapping)
+(defn on-message
+  [event]
+  (wu/handle-event
+   profile/specific-mapping
+   identity
+   profile/walk-multiply
+   (partial s/valid? ::profile/payload)
+   profile/reverse-mapping
+   event))
+
+(set! (.-onmessage js/self) on-message)

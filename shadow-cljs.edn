@@ -6,7 +6,6 @@
           {:target :browser
            :output-dir "public/js"
            :output-to "public/js/transform-to-editable-worker.js"
-           :main transform-to-editable-worker
            :asset-path "/js"
            :modules {:transform-to-editable-worker {:init-fn transform-to-editable-worker/on-message
                                                      :web-worker true}}}
@@ -15,7 +14,6 @@
           {:target :browser
            :output-dir "public/js"
            :output-to "public/js/transform-from-editable-worker.js"
-           :main transform-from-editable-worker
            :asset-path "/js"
            :modules {:transform-from-editable-worker {:init-fn transform-from-editable-worker/on-message
                                                       :web-worker true}}}}}

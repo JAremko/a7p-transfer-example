@@ -66,7 +66,8 @@ COPY src ./src
 COPY shadow-cljs.edn ./
 
 # Build the JavaScript workers using shadow-cljs
-RUN npx shadow-cljs release transform-to-editable-worker transform-from-editable-worker
+RUN npx shadow-cljs release transform-to-editable-worker \
+                            transform-from-editable-worker
 
 # executable image
 FROM ubuntu:latest
