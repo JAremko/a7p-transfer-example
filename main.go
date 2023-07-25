@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,8 +48,10 @@ func validateAndStripChecksum(data []byte) ([]byte, error) {
 }
 
 func sanitizeFilename(filename string) (string, error) {
-	if strings.Contains(filename, "..") || !strings.HasSuffix(filename, ".a7p") {
-		return "", errors.New("invalid filename")
+	// Allow only alphanumeric characters, underscore, and hyphen in filenames.
+	// A valid filename must also start with an alphanumeric character.
+	if match, _ := regexp.MatchString(`^[a-zA-Z0-9][\w-]*\.a7p$`, filename); !match {
+		return "", errors.New("invalid filename: only alphanumeric characters, underscore, and hyphen allowed. filename must start with an alphanumeric character and end with '.a7p'")
 	}
 	return filename, nil
 }
