@@ -88,16 +88,16 @@
       (cljs.core.clj->js post-processed-data)
       (cske/transform-keys csk/->camelCaseKeyword post-processed-data))))
 
-(defn handle-message [mapped-data transform-and-validate-fn process-data-fn
-                     post-process-fn]
+(defn handle-message [mapped-data transform-and-validate-fn process-data-fn post-process-fn]
   "Handles message with given mapped data. Applies transformation,
    validation and post processing, returns JS object to post back."
   (let [{:keys [data err]} (transform-and-validate-fn mapped-data)]
     (if err
       (cljs.core.clj->js err)
-      (let [processed-data (process-data-fn data)
-            result (post-process-fn processed-data)]
-        (cljs.core.clj->js result)))))
+      (let [processed-data (process-data-fn data)]
+        (if (:err processed-data)
+          (cljs.core.clj->js (:err processed-data)) ; handle :err from process-data
+          (cljs.core.clj->js (post-process-fn processed-data)))))))
 
 (defn handle-event [specific-mapping-fn pre-validate-fn post-validate-fn
                    validate-fn reverse-mapping-fn event]
