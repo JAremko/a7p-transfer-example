@@ -83,8 +83,8 @@ COPY --from=node-builder /app/public/js/transform-to-editable-worker.js /www/
 COPY --from=node-builder /app/public/js/transform-from-editable-worker.js /www/
 COPY favicon.ico /www/
 
-# Expose port 443 to the outside
-EXPOSE 443
+# Expose port 80 to the outside
+EXPOSE 80
 
 # Command to run the executable
 CMD ["./main", "-dir=/data"]
