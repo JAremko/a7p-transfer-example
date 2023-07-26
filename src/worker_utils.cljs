@@ -33,42 +33,43 @@
 (defn validate-unique-mv-ma [data]
   (let [coef-g1-g7 (concat (:coef-g1 data) (:coef-g7 data))
         coef-custom (:coef-custom data)
-        mv-ma-values (concat (map :mv coef-g1-g7) (map :ma coef-custom))
+        coef-g1-g7-valid (filter #(not (and (or (= 0 (:bc %)) (nil? (:bc %)))
+                                             (or (= 0 (:mv %)) (nil? (:mv %))))) coef-g1-g7)
+        coef-custom-valid (filter #(not (and (or (= 0 (:cd %)) (nil? (:cd %)))
+                                             (or (= 0 (:ma %)) (nil? (:ma %))))) coef-custom)
+        mv-ma-values (concat (map :mv coef-g1-g7-valid) (map :ma coef-custom-valid))
         grouped (group-by identity mv-ma-values)]
     (when (some #(> (count (second %)) 1) grouped)
-      ":mv for :coef-g1 and :coef-g7, :ma for :coef-custom can't repeat")))
-
-(defn validate-disabled-row [{:keys [coef-g1 coef-g7 coef-custom]}]
-  (let [all-coef (concat coef-g1 coef-g7 coef-custom)]
-    (when (some #(and (zero? (:bc %)) (zero? (:mv %))) all-coef)
-      "If both values in the map are 0, the row is considered disabled and should not be present")))
+      ":mv for :coef-g1 and :coef-g7, :ma for :coef-custom can't repeat unless 0")))
 
 (defn validate-at-least-one-active-row [{:keys [coef-g1 coef-g7 coef-custom]}]
   (let [all-coef (concat coef-g1 coef-g7 coef-custom)]
-    (when (every? #(or (= 0 (:bc %)) (= 0 (:mv %)) (= 0 (:cd %)) (= 0 (:ma %))) all-coef)
-      "At least one row in :coef-* should not have both values as 0")))
+    (when (every? #(and (or (= 0 (:bc %)) (nil? (:bc %)))
+                        (or (= 0 (:mv %)) (nil? (:mv %)))
+                        (or (= 0 (:cd %)) (nil? (:cd %)))
+                        (or (= 0 (:ma %)) (nil? (:ma %)))) all-coef)
+      "At least one row in :coef-* should have at least one non-zero value")))
 
 (def invariants
   [validate-active-coef-collection
    validate-coef-g1-g7
    validate-coef-custom
- ;;  validate-bc-not-zero
- ;;  validate-unique-mv-ma
- ;;  validate-disabled-row
- ;;  validate-at-least-one-active-row
+   validate-bc-not-zero
+   validate-unique-mv-ma
+   validate-at-least-one-active-row
    ;; Add more validators here as needed
   ])
 
 (defn process-data [{:keys [profile] :as x}]
   "Logs the received profile data in the worker, checks its invariants, and returns the data as is if all checks pass.
    If any invariant checks fail, returns a map with :err key and a vector of error messages."
+  (js/console.log "Received message in worker:\n" (with-out-str (pprint/pprint profile)))
   (let [errors (filterv some? (map #(% profile) invariants))]
     (if (not-empty errors)
-      {:err errors}
       (do
-        (js/console.log "Received message in worker and all invariants check pass:\n"
-                        (with-out-str (pprint/pprint profile)))
-        x))))
+        (js/console.log "Errors:\n" (str errors) "\n")
+        {:err errors})
+      x)))
 
 
 (defn transform-and-validate [pre-validate-fn post-validate-fn validate-fn data]

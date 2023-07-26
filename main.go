@@ -65,6 +65,7 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Cache-Control", "no-store")
     // path.Clean will return a canonical path, effectively removing any
     // "..", ".", or multiple slashes, and preventing directory traversal attacks
     safePath := path.Clean(r.URL.Path)
@@ -77,6 +78,8 @@ func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+
 	if r.Method != http.MethodGet {
 		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		return
@@ -107,6 +110,8 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
 	if err != nil {
 		log.Printf("Invalid filename: %v", err)
