@@ -9,11 +9,8 @@ RUN go mod init github.com/jaremko/a7p_transfer_example
 
 # Install protobuf compiler and Go protobuf plugin
 RUN apt-get update && \
-    apt-get install -y openssl protobuf-compiler && \
+    apt-get install -y protobuf-compiler && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-
-RUN mkdir -p /certs && \
-	openssl req -x509 -newkey rsa:4096 -keyout /certs/key.pem -out /certs/cert.pem -days 365 -nodes -subj "/C=US/ST=California/L=San Francisco/O=JustAnExample/CN=localhost"
 
 ENV PATH=$PATH:/go/bin
 
@@ -76,19 +73,18 @@ WORKDIR /root/
 
 # Copy the executable from the Go builder stage
 COPY --from=go-builder /app/main .
-COPY --from=go-builder /certs /certs
-COPY index.html .
-COPY main.js .
-COPY bulma.css .
-COPY monokai-sublime.min.css .
-COPY highlight.min.js .
+COPY index.html /www/
+COPY main.js /www/
+COPY bulma.css /www/
+COPY monokai-sublime.min.css /www/
+COPY highlight.min.js /www/
 # Copy worker JavaScript files
-COPY --from=node-builder /app/public/js/transform-to-editable-worker.js .
-COPY --from=node-builder /app/public/js/transform-from-editable-worker.js .
-COPY favicon.ico .
+COPY --from=node-builder /app/public/js/transform-to-editable-worker.js /www/
+COPY --from=node-builder /app/public/js/transform-from-editable-worker.js /www/
+COPY favicon.ico /www/
 
 # Expose port 443 to the outside
 EXPOSE 443
 
 # Command to run the executable
-CMD ["./main", "-dir=/data", "-cert=/certs/cert.pem", "-key=/certs/key.pem"]
+CMD ["./main", "-dir=/data"]

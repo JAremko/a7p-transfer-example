@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"path"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,7 +65,15 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, r.URL.Path[1:])
+    // path.Clean will return a canonical path, effectively removing any
+    // "..", ".", or multiple slashes, and preventing directory traversal attacks
+    safePath := path.Clean(r.URL.Path)
+
+    // Prepend the /www directory to the path
+    filePath := path.Join("/www", safePath)
+
+    // Serve the file
+    http.ServeFile(w, r, filePath)
 }
 
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
@@ -204,17 +213,15 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	dirPtr := flag.String("dir", ".", "directory to serve")
-	certPtr := flag.String("cert", "cert.pem", "path to the certificate file")
-	keyPtr := flag.String("key", "key.pem", "path to the key file")
 
 	flag.Parse()
 
-	log.Printf("Starting localhost server at https://localhost/")
-	log.Printf("You might want to integrate https://github.com/FiloSottile/mkcert")
-	log.Printf("If \"unknown certificate message\" annoys you too much.")
+	log.Printf("Starting localhost server at http://localhost/")
 
 	http.HandleFunc("/", handleStaticFiles)
-	http.HandleFunc("/filelist", func(w http.ResponseWriter, r *http.Request) { handleFileList(*dirPtr, w, r) })
+	http.HandleFunc("/filelist", func(w http.ResponseWriter, r *http.Request) {
+		handleFileList(*dirPtr, w, r)
+	})
 	http.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -228,5 +235,6 @@ func main() {
 		}
 	})
 
-	log.Fatal(http.ListenAndServeTLS(":443", *certPtr, *keyPtr, nil))
+	log.Fatal(http.ListenAndServe(":80", nil))
 }
+
