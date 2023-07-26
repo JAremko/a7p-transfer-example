@@ -40,7 +40,7 @@
         mv-ma-values (concat (map :mv coef-g1-g7-valid) (map :ma coef-custom-valid))
         grouped (group-by identity mv-ma-values)]
     (when (some #(> (count (second %)) 1) grouped)
-      ":mv for :coef-g1 and :coef-g7, :ma for :coef-custom can't repeat unless 0")))
+      ":mv for :coef-g1 and :coef-g7, :ma for :coef-custom can't repeat unless every value is 0")))
 
 (defn validate-at-least-one-active-row [{:keys [coef-g1 coef-g7 coef-custom]}]
   (let [all-coef (concat coef-g1 coef-g7 coef-custom)]

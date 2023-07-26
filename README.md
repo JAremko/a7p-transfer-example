@@ -9,9 +9,16 @@
 - [main.js](#mainjs)
 - [index.html](#indexhtml)
 
+![Screenshot](screenshot.png)
+
 ## Project Overview
 
 This project is a web-based Profile Editor application that allows users to manage `.a7p` files. It uses a Docker-based Go application for the server-side logic, a JavaScript file for the client-side logic, and an HTML file for the user interface. The application provides functionalities for listing, retrieving, creating, and deleting `.a7p` files.
+
+Here is a diagram of the project structure:
+
+![Project Structure Diagram](project.svg)
+
 
 ## How to Build the Project
 
