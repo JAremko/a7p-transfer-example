@@ -282,9 +282,9 @@
 (defn replace-bc-table-keys [bc-type bc-table]
   (mapv (fn [m]
           (case bc-type
-            :g1 (rename-keys m {:first :bc :second :mv})
-            :g7 (rename-keys m {:first :bc :second :mv})
-            :custom (rename-keys m {:first :cd :second :ma})
+            :g1 (rename-keys m {:bc-cd :bc :mv :mv})
+            :g7 (rename-keys m {:bc-cd :bc :mv :mv})
+            :custom (rename-keys m {:bc-cd :cd :mv :ma})
             (throw (ex-info "unknown bc type"
                             {:bc-type bc-type :err "BC type?"}))))
         bc-table))
@@ -292,8 +292,8 @@
 (defn replace-bc-table-keys-reverse [bc-table]
   (mapv (fn [m]
           (cond
-            (and (:bc m) (:mv m)) (rename-keys m {:bc :first, :mv :second})
-            (and (:cd m) (:ma m)) (rename-keys m {:cd :first, :ma :second})
+            (and (:bc m) (:mv m)) (rename-keys m {:bc :bc-cd, :mv :mv})
+            (and (:cd m) (:ma m)) (rename-keys m {:cd :bc-cd, :ma :mv})
             :else (throw (ex-info "Can't infer bc type"
                                   {:bc-table bc-table
                                    :bc-row m
