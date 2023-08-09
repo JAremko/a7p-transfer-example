@@ -10,24 +10,72 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"regexp"
-	"path"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/jaremko/a7p_transfer_example/profedit"
 )
 
+func invertZeroX(data *map[string]interface{}) error {
+	// Access the profile map and invert zeroX
+	if profile, ok := (*data)["profile"].(map[string]interface{}); ok {
+		if zeroX, ok := profile["zeroX"].(float64); ok {
+			profile["zeroX"] = -zeroX
+		} else {
+			return errors.New("zeroX is not a valid number")
+		}
+	} else {
+		return errors.New("profile not found or not a map")
+	}
+	return nil
+}
+
 func jsonToProto(jsonStr string, pb proto.Message) error {
-	return jsonpb.UnmarshalString(jsonStr, pb)
+	var data map[string]interface{}
+
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return err
+	}
+
+	if err := invertZeroX(&data); err != nil {
+		return err
+	}
+
+	modifiedJSON, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	return jsonpb.UnmarshalString(string(modifiedJSON), pb)
 }
 
 func protoToJson(pb proto.Message) (string, error) {
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
-	return marshaler.MarshalToString(pb)
+	jsonStr, err := marshaler.MarshalToString(pb)
+	if err != nil {
+		return "", err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return "", err
+	}
+
+	if err := invertZeroX(&data); err != nil {
+		return "", err
+	}
+
+	modifiedJSON, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return string(modifiedJSON), nil
 }
 
 func checksum(data []byte) string {
@@ -65,16 +113,16 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Cache-Control", "no-store")
-    // path.Clean will return a canonical path, effectively removing any
-    // "..", ".", or multiple slashes, and preventing directory traversal attacks
-    safePath := path.Clean(r.URL.Path)
+	w.Header().Set("Cache-Control", "no-store")
+	// path.Clean will return a canonical path, effectively removing any
+	// "..", ".", or multiple slashes, and preventing directory traversal attacks
+	safePath := path.Clean(r.URL.Path)
 
-    // Prepend the /www directory to the path
-    filePath := path.Join("/www", safePath)
+	// Prepend the /www directory to the path
+	filePath := path.Join("/www", safePath)
 
-    // Serve the file
-    http.ServeFile(w, r, filePath)
+	// Serve the file
+	http.ServeFile(w, r, filePath)
 }
 
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
@@ -242,4 +290,3 @@ func main() {
 
 	log.Fatal(http.ListenAndServe(":80", nil))
 }
-
