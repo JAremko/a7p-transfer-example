@@ -78,6 +78,8 @@ COPY main.js /www/
 COPY bulma.css /www/
 COPY monokai-sublime.min.css /www/
 COPY highlight.min.js /www/
+COPY protobuf.js /www/
+COPY profedit.proto /www/
 # Copy worker JavaScript files
 COPY --from=node-builder /app/public/js/transform-to-editable-worker.js /www/
 COPY --from=node-builder /app/public/js/transform-from-editable-worker.js /www/
