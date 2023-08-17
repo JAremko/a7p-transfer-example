@@ -10,7 +10,6 @@ const fileContentEditable = document.getElementById('fileContentEditable');
 let selectedFile = null;
 let Payload;
 
-// Fetch and initialize the protobuf definition
 fetch('/profedit.proto').then(response => response.text()).then(protoDef => {
     const root = protobuf.parse(protoDef).root;
     Payload = root.lookupType("profedit.Payload");
@@ -31,8 +30,16 @@ transformFromEditableWorker.onmessage = event => {
     hljs.highlightElement(fileContentNonEditable);
 };
 
+const handleNonOkResponse = async (response) => {
+    if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error);
+    }
+    return response;
+};
+
 const getFiles = async () => {
-    const response = await fetch('/filelist');
+    const response = await fetch('/filelist').then(handleNonOkResponse);
     const files = await response.json();
     fileList.innerHTML = '';
     files.forEach(file => {
@@ -51,7 +58,17 @@ const getFiles = async () => {
 
 const setSelectedFile = async (file) => {
     selectedFile = file;
-    const response = await fetch(`/files?filename=${selectedFile}`);
+
+    Array.from(fileList.children).forEach(listItem => {
+        listItem.classList.remove('active');
+    });
+
+    const selectedItem = Array.from(fileList.children).find(listItem => listItem.textContent === file);
+    if (selectedItem) {
+        selectedItem.classList.add('active');
+    }
+
+    const response = await fetch(`/files?filename=${selectedFile}`).then(handleNonOkResponse);
     const buffer = await response.arrayBuffer();
     const message = Payload.decode(new Uint8Array(buffer));
     const profileObj = Payload.toObject(message, { enums: String, defaults: true });
@@ -61,15 +78,6 @@ const setSelectedFile = async (file) => {
     transformToEditableWorker.postMessage(profileObj);
 };
 
-fileContentEditable.oninput = () => {
-    try {
-        const editableContentJson = JSON.parse(fileContentEditable.textContent);
-        transformFromEditableWorker.postMessage(editableContentJson);
-    } catch (e) {
-        console.error("Invalid JSON input");
-    }
-};
-
 getFilesButton.onclick = getFiles;
 
 deleteFileButton.onclick = async () => {
@@ -77,7 +85,7 @@ deleteFileButton.onclick = async () => {
         alert('No file selected!');
         return;
     }
-    const response = await fetch(`/files?filename=${selectedFile}`, { method: 'DELETE' });
+    const response = await fetch(`/files?filename=${selectedFile}`, { method: 'DELETE' }).then(handleNonOkResponse);
     if (response.ok) {
         alert(`Deleted ${selectedFile}`);
         selectedFile = null;
@@ -98,51 +106,52 @@ const saveChanges = async (filename) => {
             'Content-Type': 'application/x-protobuf'
         },
         body: buffer
-    });
+    }).then(handleNonOkResponse);
     return response;
 };
 
 saveFileButton.onclick = async () => {
-  if (selectedFile === null) {
-    alert('No file selected!');
-    return;
-  }
+    if (selectedFile === null) {
+        alert('No file selected!');
+        return;
+    }
 
-  if (!selectedFile.endsWith('.a7p')) {
-    selectedFile += '.a7p';
-  }
+    let fileContentJson;
+    try {
+        fileContentJson = JSON.parse(fileContentNonEditable.textContent);
+    } catch (e) {
+        alert('Invalid JSON content');
+        return;
+    }
 
-  let fileContentJson;
-  try {
-    fileContentJson = JSON.parse(fileContentNonEditable.textContent);
-  } catch (e) {
-    alert('Invalid JSON content');
-    return;
-  }
+    const response = await fetch(`/files?filename=${selectedFile}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content: fileContentJson })
+    }).then(handleNonOkResponse);
 
-  const response = await fetch(`/files?filename=${selectedFile}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ content: fileContentJson })
-  });
-  if (response.ok) {
-    alert(`Saved changes to ${selectedFile}`);
-    getFiles();
-  } else {
-    alert('Failed to save file');
-  }
+    if (response.ok) {
+        alert(`Saved changes to ${selectedFile}`);
+        getFiles();
+    } else {
+        alert('Failed to save file');
+    }
 };
 
 saveFileAsButton.onclick = async () => {
-    const newFileName = newFileNameInput.value;
+    let newFileName = newFileNameInput.value;
     if (!newFileName) {
         alert('No file name provided!');
         return;
     }
 
-    const response = await saveChanges(newFileName);
+    if (!newFileName.endsWith('.a7p')) {
+        newFileName += '.a7p';
+    }
+
+    const response = await saveChanges(newFileName).then(handleNonOkResponse);
     if (response.ok) {
         alert(`Saved as ${newFileName}`);
         selectedFile = newFileName;
