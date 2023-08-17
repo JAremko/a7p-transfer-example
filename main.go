@@ -269,7 +269,7 @@ func main() {
 
 	flag.Parse()
 
-	log.Printf("Starting localhost server at http://localhost/")
+	log.Printf("Starting localhost server at http://localhost:8080")
 
 	http.HandleFunc("/", handleStaticFiles)
 	http.HandleFunc("/filelist", func(w http.ResponseWriter, r *http.Request) {
@@ -288,5 +288,5 @@ func main() {
 		}
 	})
 
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
