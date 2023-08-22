@@ -26,7 +26,7 @@ enum DType {
 message SwPos {
   int32 c_idx = 1;
   int32 reticle_idx = 2;
-  int32 zoom = 3;
+  int32 zoom = 3 [(buf.validate.field).int32.gte = 0, (buf.validate.field).int32.lte = 5];
   int32 distance = 4;
   DType distance_from = 5;
 }
