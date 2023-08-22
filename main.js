@@ -30,6 +30,15 @@ transformFromEditableWorker.onmessage = event => {
     hljs.highlightElement(fileContentNonEditable);
 };
 
+fileContentEditable.addEventListener('input', () => {
+    try {
+        const editableContentJson = JSON.parse(fileContentEditable.textContent);
+        transformFromEditableWorker.postMessage(editableContentJson);
+    } catch (e) {
+        console.error('Invalid JSON content in editable area');
+    }
+});
+
 const handleNonOkResponse = async (response) => {
     if (!response.ok) {
         const errorData = await response.json();
