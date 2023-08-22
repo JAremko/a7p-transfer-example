@@ -43,48 +43,57 @@ const handleNonOkResponse = async (response) => {
     if (!response.ok) {
         const errorData = await response.json();
         alert(errorData.error);
+        throw new Error(errorData.error);
     }
     return response;
 };
 
 const getFiles = async () => {
-    const response = await fetch('/filelist').then(handleNonOkResponse);
-    const files = await response.json();
-    fileList.innerHTML = '';
-    files.forEach(file => {
-        const listItem = document.createElement('li');
-        listItem.textContent = file;
-        listItem.onclick = () => setSelectedFile(file);
-        fileList.appendChild(listItem);
-    });
+    try {
+        const response = await fetch('/filelist').then(handleNonOkResponse);
+        const files = await response.json();
+        fileList.innerHTML = '';
+        files.forEach(file => {
+            const listItem = document.createElement('li');
+            listItem.textContent = file;
+            listItem.onclick = () => setSelectedFile(file);
+            fileList.appendChild(listItem);
+        });
 
-    if (files.includes(selectedFile)) {
-        setSelectedFile(selectedFile);
-    } else if (files.length > 0) {
-        setSelectedFile(files[0]);
+        if (files.includes(selectedFile)) {
+            setSelectedFile(selectedFile);
+        } else if (files.length > 0) {
+            setSelectedFile(files[0]);
+        }
+    } catch (e) {
+        console.error(e.message);
     }
 };
 
 const setSelectedFile = async (file) => {
-    selectedFile = file;
+    try {
+        selectedFile = file;
 
-    Array.from(fileList.children).forEach(listItem => {
-        listItem.classList.remove('active');
-    });
+        Array.from(fileList.children).forEach(listItem => {
+            listItem.classList.remove('active');
+        });
 
-    const selectedItem = Array.from(fileList.children).find(listItem => listItem.textContent === file);
-    if (selectedItem) {
-        selectedItem.classList.add('active');
+        const selectedItem = Array.from(fileList.children).find(listItem => listItem.textContent === file);
+        if (selectedItem) {
+            selectedItem.classList.add('active');
+        }
+
+        const response = await fetch(`/files?filename=${selectedFile}`).then(handleNonOkResponse);
+        const buffer = await response.arrayBuffer();
+        const message = Payload.decode(new Uint8Array(buffer));
+        const profileObj = Payload.toObject(message, { enums: String, defaults: true });
+
+        fileContentNonEditable.textContent = JSON.stringify(profileObj, null, 2);
+        hljs.highlightElement(fileContentNonEditable);
+        transformToEditableWorker.postMessage(profileObj);
+    } catch (e) {
+        console.error(e.message);
     }
-
-    const response = await fetch(`/files?filename=${selectedFile}`).then(handleNonOkResponse);
-    const buffer = await response.arrayBuffer();
-    const message = Payload.decode(new Uint8Array(buffer));
-    const profileObj = Payload.toObject(message, { enums: String, defaults: true });
-
-    fileContentNonEditable.textContent = JSON.stringify(profileObj, null, 2);
-    hljs.highlightElement(fileContentNonEditable);
-    transformToEditableWorker.postMessage(profileObj);
 };
 
 getFilesButton.onclick = getFiles;
@@ -125,12 +134,17 @@ saveFileButton.onclick = async () => {
         return;
     }
 
-    const response = await saveChanges(selectedFile).then(handleNonOkResponse);
-    if (response.ok) {
-        alert(`Saved changes to ${selectedFile}`);
-        getFiles();
-    } else {
-        alert('Failed to save file');
+    try {
+        const response = await saveChanges(selectedFile);
+        if (response.ok) {
+            alert(`Saved changes to ${selectedFile}`);
+            getFiles();
+        } else {
+            alert('Failed to save file');
+        }
+    } catch (e) {
+        console.error(e.message);
+        alert('Failed to save file: ' + e.message);
     }
 };
 
@@ -145,13 +159,18 @@ saveFileAsButton.onclick = async () => {
         newFileName += '.a7p';
     }
 
-    const response = await saveChanges(newFileName).then(handleNonOkResponse);
-    if (response.ok) {
-        alert(`Saved as ${newFileName}`);
-        selectedFile = newFileName;
-        getFiles();
-    } else {
-        alert('Failed to save file');
+    try {
+        const response = await saveChanges(newFileName);
+        if (response.ok) {
+            alert(`Saved as ${newFileName}`);
+            selectedFile = newFileName;
+            getFiles();
+        } else {
+            alert('Failed to save file');
+        }
+    } catch (e) {
+        console.error(e.message);
+        alert('Failed to save file as: ' + e.message);
     }
 };
 
