@@ -23,7 +23,7 @@ RUN go mod init github.com/jaremko/a7p_transfer_example
 
 # Download all required dependencies
 RUN go get github.com/gorilla/websocket
-RUN go get github.com/golang/protobuf/proto
+RUN go get google.golang.org/protobuf/proto
 RUN go get github.com/golang/protobuf/jsonpb
 RUN go get google.golang.org/grpc
 RUN go get google.golang.org/protobuf/reflect/protoreflect

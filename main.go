@@ -16,9 +16,30 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
+	"github.com/bufbuild/protovalidate-go"
 	"github.com/jaremko/a7p_transfer_example/profedit"
 )
+
+var v *protovalidate.Validator
+
+func ValidatorInit() {
+	var err error
+	v, err = protovalidate.New()
+	if err != nil {
+		log.Fatal("[Go] failed to initialize validator:", err)
+	}
+}
+
+func validateProtoPayload(w http.ResponseWriter, pb proto.Message) error {
+	if err := v.Validate(pb); err != nil {
+		log.Println("[Go] validation failed:", err)
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Validation failed: %v", err))
+		return err
+	}
+	log.Println("[Go] validation succeeded")
+	return nil
+}
 
 func checksum(data []byte) string {
 	h := md5.New()
@@ -108,6 +129,17 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pb := &profedit.Payload{}
+	if err := proto.Unmarshal(content, pb); err != nil {
+		log.Printf("Error unmarshalling protobuf: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	if err := validateProtoPayload(w, pb); err != nil {
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(content)
 }
@@ -131,6 +163,10 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 	if err := proto.Unmarshal(content, pb); err != nil {
 		log.Printf("Error unmarshalling protobuf: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	if err := validateProtoPayload(w, pb); err != nil {
 		return
 	}
 
@@ -164,6 +200,8 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	ValidatorInit()
+
 	dirPtr := flag.String("dir", ".", "directory to serve")
 
 	flag.Parse()
