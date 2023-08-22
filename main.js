@@ -125,22 +125,7 @@ saveFileButton.onclick = async () => {
         return;
     }
 
-    let fileContentJson;
-    try {
-        fileContentJson = JSON.parse(fileContentNonEditable.textContent);
-    } catch (e) {
-        alert('Invalid JSON content');
-        return;
-    }
-
-    const response = await fetch(`/files?filename=${selectedFile}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ content: fileContentJson })
-    }).then(handleNonOkResponse);
-
+    const response = await saveChanges(selectedFile).then(handleNonOkResponse);
     if (response.ok) {
         alert(`Saved changes to ${selectedFile}`);
         getFiles();
