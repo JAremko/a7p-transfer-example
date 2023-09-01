@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,68 +13,32 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"encoding/json"
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
+	"github.com/bufbuild/protovalidate-go"
 	"github.com/jaremko/a7p_transfer_example/profedit"
 )
 
-func invertZeroX(data *map[string]interface{}) error {
-	// Access the profile map and invert zeroX
-	if profile, ok := (*data)["profile"].(map[string]interface{}); ok {
-		if zeroX, ok := profile["zeroX"].(float64); ok {
-			profile["zeroX"] = -zeroX
-		} else {
-			return errors.New("zeroX is not a valid number")
-		}
-	} else {
-		return errors.New("profile not found or not a map")
+var v *protovalidate.Validator
+
+func ValidatorInit() {
+	var err error
+	v, err = protovalidate.New()
+	if err != nil {
+		log.Fatal("[Go] failed to initialize validator:", err)
 	}
+}
+
+func validateProtoPayload(w http.ResponseWriter, pb proto.Message) error {
+	if err := v.Validate(pb); err != nil {
+		log.Println("[Go] validation failed:", err)
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Validation failed: %v", err))
+		return err
+	}
+	log.Println("[Go] validation succeeded")
 	return nil
-}
-
-func jsonToProto(jsonStr string, pb proto.Message) error {
-	var data map[string]interface{}
-
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-		return err
-	}
-
-	if err := invertZeroX(&data); err != nil {
-		return err
-	}
-
-	modifiedJSON, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	return jsonpb.UnmarshalString(string(modifiedJSON), pb)
-}
-
-func protoToJson(pb proto.Message) (string, error) {
-	marshaler := jsonpb.Marshaler{EmitDefaults: true}
-	jsonStr, err := marshaler.MarshalToString(pb)
-	if err != nil {
-		return "", err
-	}
-
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-		return "", err
-	}
-
-	if err := invertZeroX(&data); err != nil {
-		return "", err
-	}
-
-	modifiedJSON, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-
-	return string(modifiedJSON), nil
 }
 
 func checksum(data []byte) string {
@@ -97,8 +60,6 @@ func validateAndStripChecksum(data []byte) ([]byte, error) {
 }
 
 func sanitizeFilename(filename string) (string, error) {
-	// Allow only alphanumeric characters, underscore, and hyphen in filenames.
-	// A valid filename must also start with an alphanumeric character.
 	if match, _ := regexp.MatchString(`^[a-zA-Z0-9][\w-]*\.a7p$`, filename); !match {
 		return "", errors.New("invalid filename: only alphanumeric characters, underscore, and hyphen allowed. filename must start with an alphanumeric character and end with '.a7p'")
 	}
@@ -106,22 +67,16 @@ func sanitizeFilename(filename string) (string, error) {
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
-	resp, _ := json.Marshal(map[string]string{"error": message})
+	resp := map[string]string{"error": message}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	// path.Clean will return a canonical path, effectively removing any
-	// "..", ".", or multiple slashes, and preventing directory traversal attacks
 	safePath := path.Clean(r.URL.Path)
-
-	// Prepend the /www directory to the path
 	filePath := path.Join("/www", safePath)
-
-	// Serve the file
 	http.ServeFile(w, r, filePath)
 }
 
@@ -147,14 +102,7 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fileListJson, err := json.Marshal(fileNames)
-	if err != nil {
-		log.Printf("Error marshalling file list to JSON: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Server error")
-		return
-	}
-
-	w.Write(fileListJson)
+	json.NewEncoder(w).Encode(fileNames)
 }
 
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
@@ -182,21 +130,18 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	pb := &profedit.Payload{}
-	err = proto.Unmarshal(content, pb)
-	if err != nil {
-		log.Printf("Error unmarshalling proto file: %v", err)
+	if err := proto.Unmarshal(content, pb); err != nil {
+		log.Printf("Error unmarshalling protobuf: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Server error")
 		return
 	}
 
-	jsonStr, err := protoToJson(pb)
-	if err != nil {
-		log.Printf("Error marshalling proto file to json: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Server error")
+	if err := validateProtoPayload(w, pb); err != nil {
 		return
 	}
 
-	w.Write([]byte(jsonStr))
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Write(content)
 }
 
 func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
@@ -207,37 +152,28 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Content json.RawMessage `json:"content"`
-	}
-
-	err = json.NewDecoder(r.Body).Decode(&req)
+	content, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("Error decoding request body: %v", err)
+		log.Printf("Error reading request body: %v", err)
 		respondWithError(w, http.StatusBadRequest, "Bad request")
 		return
 	}
 
 	pb := &profedit.Payload{}
-	err = jsonToProto(string(req.Content), pb)
-	if err != nil {
-		log.Printf("Error unmarshalling json to proto: %v", err)
+	if err := proto.Unmarshal(content, pb); err != nil {
+		log.Printf("Error unmarshalling protobuf: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Server error")
 		return
 	}
 
-	content, err := proto.Marshal(pb)
-	if err != nil {
-		log.Printf("Error marshalling proto to bytes: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Server error")
+	if err := validateProtoPayload(w, pb); err != nil {
 		return
 	}
 
 	checksum := checksum(content)
 	data := append([]byte(checksum), content...)
 
-	err = ioutil.WriteFile(filepath.Join(dir, filename), data, 0644)
-	if err != nil {
+	if err := ioutil.WriteFile(filepath.Join(dir, filename), data, 0644); err != nil {
 		log.Printf("Error writing file: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Server error")
 		return
@@ -254,8 +190,7 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = os.Remove(filepath.Join(dir, filename))
-	if err != nil {
+	if err := os.Remove(filepath.Join(dir, filename)); err != nil {
 		log.Printf("Error deleting file: %v", err)
 		respondWithError(w, http.StatusNotFound, "File not found")
 		return
@@ -265,11 +200,13 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	ValidatorInit()
+
 	dirPtr := flag.String("dir", ".", "directory to serve")
 
 	flag.Parse()
 
-	log.Printf("Starting localhost server at http://localhost/")
+	log.Printf("Starting localhost server at http://localhost:8080")
 
 	http.HandleFunc("/", handleStaticFiles)
 	http.HandleFunc("/filelist", func(w http.ResponseWriter, r *http.Request) {
@@ -288,5 +225,5 @@ func main() {
 		}
 	})
 
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
