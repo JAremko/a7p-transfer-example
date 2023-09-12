@@ -83,26 +83,37 @@ func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 
-	if r.Method != http.MethodGet {
-		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
-		return
-	}
-
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		log.Printf("Error reading directory: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Server error")
-		return
-	}
-
-	var fileNames []string
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".a7p") {
-			fileNames = append(fileNames, file.Name())
+	switch r.Method {
+	case http.MethodGet:
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			log.Printf("Error reading directory: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Server error")
+			return
 		}
-	}
 
-	json.NewEncoder(w).Encode(fileNames)
+		var fileNames []string
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), ".a7p") {
+				fileNames = append(fileNames, file.Name())
+			}
+		}
+
+		json.NewEncoder(w).Encode(fileNames)
+
+	case http.MethodPost:
+		_, err := os.OpenFile("/tmp/refresh_file_list", os.O_RDONLY|os.O_CREATE, 0644)
+		if err != nil {
+			log.Printf("Error creating/touching flag file: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+
+		w.Write([]byte("Flag file created/refreshed"))
+
+	default:
+		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
+	}
 }
 
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {

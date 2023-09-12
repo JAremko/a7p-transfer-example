@@ -6,6 +6,7 @@ const newFileNameInput = document.getElementById('newFileName');
 const fileList = document.getElementById('fileList');
 const fileContentNonEditable = document.getElementById('fileContentNonEditable');
 const fileContentEditable = document.getElementById('fileContentEditable');
+const refreshFileListButton = document.getElementById('refreshFileList');
 
 let selectedFile = null;
 let Payload;
@@ -46,6 +47,16 @@ const handleNonOkResponse = async (response) => {
         throw new Error(errorData.error);
     }
     return response;
+};
+
+refreshFileListButton.onclick = async () => {
+    try {
+        const response = await fetch('/filelist', { method: 'POST' });
+        handleNonOkResponse(response);
+    } catch (e) {
+        console.error(e.message);
+        alert('Error initiating file list refresh: ' + e.message);
+    }
 };
 
 const getFiles = async () => {
