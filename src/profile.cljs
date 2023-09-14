@@ -169,10 +169,7 @@
    :mv 1
    :cd 4
    :ma 4
-   :distances 2
-   :coef-g1 4
-   :coef-g7 4
-   :coef-custom 4})
+   :distances 2})
 
 
 (declare adjust-map)
