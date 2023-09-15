@@ -21,7 +21,7 @@ with open('README.md', 'r') as fp:
     long_description = fp.read()
 
 
-package_data = {'a7p': ['requirements.txt', 'a7p/test.a7p']}
+package_data = {'a7p': ['requirements.txt', 'a7p/test.a7p', 'py.typed']}
 
 setup(
     name='a7p',

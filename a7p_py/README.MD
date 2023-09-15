@@ -29,6 +29,7 @@ This command builds the Docker image and tags it as `go-server`.
 ```python
 import logging
 from a7p import A7PFile, A7PDataError
+from a7p.factory import A7PFactory
 
 # open file in binary mode
 with open('data/test.a7p', 'rb') as fp:
@@ -51,4 +52,19 @@ from_dict = A7PFile.from_dict(profile_opj)
 # saving builded profile
 with open('data/test.a7p', 'rb') as fp:
     A7PFile.dump(profile_opj, fp)
+
+    
+# creating a new a7p Payload
+payload = A7PFactory(
+    meta=A7PFactory.Meta(
+        name="test profile name",
+    ),
+    bullet=A7PFactory.Bullet(
+        weight=175,
+        length=0.9
+    ),
+    distances=A7PFactory.DistanceTable.LONG_RANGE
+)
+with open('data/test.a7p', 'rb') as fp:
+    A7PFile.dump(payload, fp)
 ```
