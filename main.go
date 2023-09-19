@@ -59,11 +59,13 @@ func validateAndStripChecksum(data []byte) ([]byte, error) {
 	return content, nil
 }
 
+var filenameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.\- ]*\.a7p$`)
+
 func sanitizeFilename(filename string) (string, error) {
-	if match, _ := regexp.MatchString(`^[a-zA-Z0-9][\w-]*\.a7p$`, filename); !match {
-		return "", errors.New("invalid filename: only alphanumeric characters, underscore, and hyphen allowed. filename must start with an alphanumeric character and end with '.a7p'")
+	if !filenameRegex.MatchString(filename) {
+		return "", errors.New("invalid filename: only alphanumeric characters, underscore, dot, space, and hyphen allowed. filename must start with an alphanumeric character and end with '.a7p'")
 	}
-	return filename, nil
+	return filepath.Clean(filename), nil
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
