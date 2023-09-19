@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,12 +14,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"encoding/json"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
-	"github.com/bufbuild/protovalidate-go"
 	"github.com/jaremko/a7p_transfer_example/profedit"
+	"google.golang.org/protobuf/proto"
 )
 
 var v *protovalidate.Validator
@@ -212,6 +211,21 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func corsMiddleware(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		handler(w, r)
+	}
+}
 func main() {
 	ValidatorInit()
 
@@ -221,11 +235,11 @@ func main() {
 
 	log.Printf("Starting localhost server at http://localhost:8080")
 
-	http.HandleFunc("/", handleStaticFiles)
-	http.HandleFunc("/filelist", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", corsMiddleware(handleStaticFiles))
+	http.HandleFunc("/filelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		handleFileList(*dirPtr, w, r)
-	})
-	http.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			handleGetFile(*dirPtr, w, r)
@@ -236,7 +250,7 @@ func main() {
 		default:
 			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		}
-	})
+	}))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
