@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/jaremko/a7p_transfer_example/profedit"
 	"github.com/bufbuild/protovalidate-go"
@@ -29,6 +31,17 @@ func ValidatorInit() {
 	if err != nil {
 		log.Fatal("[Go] failed to initialize validator:", err)
 	}
+}
+
+// Helper function to check if the flag file exists
+func flagFileExists() bool {
+	_, err := os.Stat("/tmp/refresh_file_list")
+	return !os.IsNotExist(err)
+}
+
+func flashFlagFileExists() bool {
+	_, err := os.Stat("/tmp/flash.txt")
+	return !os.IsNotExist(err)
 }
 
 func validateProtoPayload(w http.ResponseWriter, pb proto.Message) error {
@@ -76,6 +89,10 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	safePath := path.Clean(r.URL.Path)
 	filePath := path.Join("/www", safePath)
@@ -83,6 +100,11 @@ func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
 	w.Header().Set("Cache-Control", "no-store")
 
 	switch r.Method {
@@ -104,6 +126,7 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(fileNames)
 
 	case http.MethodPost:
+		// Creating or touching the /tmp/refresh_file_list flag file
 		_, err := os.OpenFile("/tmp/refresh_file_list", os.O_RDONLY|os.O_CREATE, 0644)
 		if err != nil {
 			log.Printf("Error creating/touching flag file: %v", err)
@@ -119,6 +142,11 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
 	w.Header().Set("Cache-Control", "no-store")
 
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
@@ -158,6 +186,11 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
 	if err != nil {
 		log.Printf("Invalid filename: %v", err)
@@ -196,6 +229,11 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
 	if err != nil {
 		log.Printf("Invalid filename: %v", err)
@@ -236,11 +274,28 @@ func main() {
 
 	log.Printf("Starting localhost server at http://localhost:8080")
 
-	http.HandleFunc("/", corsMiddleware(handleStaticFiles))
+	http.HandleFunc("/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if flashFlagFileExists() {
+			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+			os.Exit(0)
+		}
+		handleStaticFiles(w , r)
+	}))
+
 	http.HandleFunc("/filelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if flashFlagFileExists() {
+			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+			os.Exit(0)
+		}
 		handleFileList(*dirPtr, w, r)
 	}))
 	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+
+		if flashFlagFileExists() {
+			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+			os.Exit(0)
+		}
+
 		switch r.Method {
 		case http.MethodGet:
 			handleGetFile(*dirPtr, w, r)
@@ -253,5 +308,43 @@ func main() {
 		}
 	}))
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+
+	// Start the goroutine that checks for /tmp/foobar.txt
+	shutdownCh := make(chan struct{})
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := os.Stat("/tmp/flash.txt"); err == nil {
+					close(shutdownCh)
+					return
+				}
+			case <-shutdownCh:
+				return
+			}
+		}
+	}()
+
+	server := &http.Server{Addr: ":8080"}
+
+	go func() {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
+	}()
+
+	<-shutdownCh
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%v", err)
+	}
+	log.Println("Server exited properly")
 }
