@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/jaremko/a7p_transfer_example/profedit"
+	"github.com/bufbuild/protovalidate-go"
 	"google.golang.org/protobuf/proto"
 )
 
