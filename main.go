@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
+//	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jaremko/a7p_transfer_example/profedit"
 	"github.com/bufbuild/protovalidate-go"
+	"github.com/jaremko/a7p_transfer_example/profedit"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,6 +36,11 @@ func ValidatorInit() {
 // Helper function to check if the flag file exists
 func flagFileExists() bool {
 	_, err := os.Stat("/tmp/refresh_file_list")
+	return !os.IsNotExist(err)
+}
+
+func flagrFileExists() bool {
+	_, err := os.Stat("/tmp/refresh_reticle_file_list")
 	return !os.IsNotExist(err)
 }
 
@@ -77,6 +82,15 @@ var filenameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.\- ]*\.a7p$`)
 func sanitizeFilename(filename string) (string, error) {
 	if !filenameRegex.MatchString(filename) {
 		return "", errors.New("invalid filename: only alphanumeric characters, underscore, dot, space, and hyphen allowed. filename must start with an alphanumeric character and end with '.a7p'")
+	}
+	return filepath.Clean(filename), nil
+}
+
+var filenameRegexR = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.\- ]*\.tar$`)
+
+func sanitizerFilename(filename string) (string, error) {
+	if !filenameRegexR.MatchString(filename) {
+		return "", errors.New("invalid filename: only alphanumeric characters, underscore, dot, space, and hyphen allowed. filename must start with an alphanumeric character and end with '.tar'")
 	}
 	return filepath.Clean(filename), nil
 }
@@ -141,6 +155,49 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handlerFileList(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagrFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+
+	switch r.Method {
+	case http.MethodGet:
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			log.Printf("Error reading directory: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+
+		var fileNames []string
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), ".tar") {
+				fileNames = append(fileNames, file.Name())
+			}
+		}
+
+		json.NewEncoder(w).Encode(fileNames)
+
+	case http.MethodPost:
+		// Creating or touching the /tmp/refresh_file_list flag file
+		_, err := os.OpenFile("/tmp/refresh_reticle_file_list", os.O_RDONLY|os.O_CREATE, 0644)
+		if err != nil {
+			log.Printf("Error creating/touching flag file: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+
+		w.Write([]byte("Flag file created/refreshed"))
+
+	default:
+		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
+	}
+}
+
+
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 	if flagFileExists() {
 		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
@@ -183,6 +240,32 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(content)
+}
+
+func handleGetrFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+
+	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
+	if err != nil {
+		log.Printf("Invalid filename: %v", err)
+		respondWithError(w, http.StatusBadRequest, "Invalid filename")
+		return
+	}
+
+	data, err := ioutil.ReadFile(filepath.Join(dir, filename))
+	if err != nil {
+		log.Printf("Error reading file: %v", err)
+		respondWithError(w, http.StatusNotFound, "File not found")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Write(data)
 }
 
 func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
@@ -228,6 +311,35 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func handlePutrFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
+	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
+	if err != nil {
+		log.Printf("Invalid filename: %v", err)
+		respondWithError(w, http.StatusBadRequest, "Invalid filename")
+		return
+	}
+
+	content, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Error reading request body: %v", err)
+		respondWithError(w, http.StatusBadRequest, "Bad request")
+		return
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(dir, filename), content, 0644); err != nil {
+		log.Printf("Error writing file: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	w.Write([]byte("OK"))
+}
+
 func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 	if flagFileExists() {
 		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
@@ -235,6 +347,28 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
+	if err != nil {
+		log.Printf("Invalid filename: %v", err)
+		respondWithError(w, http.StatusBadRequest, "Invalid filename")
+		return
+	}
+
+	if err := os.Remove(filepath.Join(dir, filename)); err != nil {
+		log.Printf("Error deleting file: %v", err)
+		respondWithError(w, http.StatusNotFound, "File not found")
+		return
+	}
+
+	w.Write([]byte("OK"))
+}
+
+func handleDeleterFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if flagFileExists() {
+		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		return
+	}
+
+	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
 	if err != nil {
 		log.Printf("Invalid filename: %v", err)
 		respondWithError(w, http.StatusBadRequest, "Invalid filename")
@@ -268,9 +402,12 @@ func corsMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 func main() {
 	ValidatorInit()
 
-	dirPtr := flag.String("dir", ".", "directory to serve")
+	//dirPtr := flag.String("dir", ".", "directory to serve")
 
-	flag.Parse()
+	//flag.Parse()
+
+	dirPtr := "/usr/mmcdata/mmcblk2p8/profiles/"
+	dirRtr := "/usr/mmcdata/mmcblk2p8/reticles_tar/"
 
 	log.Printf("Starting localhost server at http://localhost:8080")
 
@@ -287,8 +424,17 @@ func main() {
 			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
 			os.Exit(0)
 		}
-		handleFileList(*dirPtr, w, r)
+		handleFileList(dirPtr, w, r)
 	}))
+
+	http.HandleFunc("/rfilelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if flashFlagFileExists() {
+			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+			os.Exit(0)
+		}
+		handlerFileList(dirRtr, w, r)
+	}))
+
 	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 
 		if flashFlagFileExists() {
@@ -298,11 +444,31 @@ func main() {
 
 		switch r.Method {
 		case http.MethodGet:
-			handleGetFile(*dirPtr, w, r)
+			handleGetFile(dirPtr, w, r)
 		case http.MethodPut:
-			handlePutFile(*dirPtr, w, r)
+			handlePutFile(dirPtr, w, r)
 		case http.MethodDelete:
-			handleDeleteFile(*dirPtr, w, r)
+			handleDeleteFile(dirPtr, w, r)
+		default:
+			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
+		}
+	}))
+
+
+	http.HandleFunc("/rfiles", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+
+		if flashFlagFileExists() {
+			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+			os.Exit(0)
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			handleGetrFile(dirRtr, w, r)
+		case http.MethodPut:
+			handlePutrFile(dirRtr, w, r)
+		case http.MethodDelete:
+			handleDeleterFile(dirRtr, w, r)
 		default:
 			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		}
