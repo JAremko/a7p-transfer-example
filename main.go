@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-//	"flag"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -402,12 +402,12 @@ func corsMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 func main() {
 	ValidatorInit()
 
-	//dirPtr := flag.String("dir", ".", "directory to serve")
+	dirPtr := flag.String("dir", "/usr/mmcdata/mmcblk2p8/profiles/", "directory to serve")
+	dirRtr := flag.String("rdir", "/usr/mmcdata/mmcblk2p8/reticles_tar/", "directory to serve")
+	flag.Parse()
 
-	//flag.Parse()
-
-	dirPtr := "/usr/mmcdata/mmcblk2p8/profiles/"
-	dirRtr := "/usr/mmcdata/mmcblk2p8/reticles_tar/"
+	//dirPtr := "/usr/mmcdata/mmcblk2p8/profiles/"
+	//dirRtr := "/usr/mmcdata/mmcblk2p8/reticles_tar/"
 
 	log.Printf("Starting localhost server at http://localhost:8080")
 
@@ -424,7 +424,7 @@ func main() {
 			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
 			os.Exit(0)
 		}
-		handleFileList(dirPtr, w, r)
+		handleFileList(*dirPtr, w, r)
 	}))
 
 	http.HandleFunc("/rfilelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -432,7 +432,7 @@ func main() {
 			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
 			os.Exit(0)
 		}
-		handlerFileList(dirRtr, w, r)
+		handlerFileList(*dirRtr, w, r)
 	}))
 
 	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -444,11 +444,11 @@ func main() {
 
 		switch r.Method {
 		case http.MethodGet:
-			handleGetFile(dirPtr, w, r)
+			handleGetFile(*dirPtr, w, r)
 		case http.MethodPut:
-			handlePutFile(dirPtr, w, r)
+			handlePutFile(*dirPtr, w, r)
 		case http.MethodDelete:
-			handleDeleteFile(dirPtr, w, r)
+			handleDeleteFile(*dirPtr, w, r)
 		default:
 			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		}
@@ -464,11 +464,11 @@ func main() {
 
 		switch r.Method {
 		case http.MethodGet:
-			handleGetrFile(dirRtr, w, r)
+			handleGetrFile(*dirRtr, w, r)
 		case http.MethodPut:
-			handlePutrFile(dirRtr, w, r)
+			handlePutrFile(*dirRtr, w, r)
 		case http.MethodDelete:
-			handleDeleterFile(dirRtr, w, r)
+			handleDeleterFile(*dirRtr, w, r)
 		default:
 			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		}
