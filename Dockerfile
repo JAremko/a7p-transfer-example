@@ -92,4 +92,4 @@ COPY --from=node-builder /app/public/js/transform-from-editable-worker.js /www/
 COPY favicon.ico /www/
 
 EXPOSE 8080
-CMD ["./main", "-dir=/data"]
+CMD ["./main", "-dir=/data", "-rdir=/rdata"]
