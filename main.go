@@ -412,35 +412,35 @@ func main() {
 	log.Printf("Starting localhost server at http://localhost:8080")
 
 	http.HandleFunc("/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if flashFlagFileExists() {
-			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-			os.Exit(0)
-		}
+		// if flashFlagFileExists() {
+		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		// 	os.Exit(0)
+		// }
 		handleStaticFiles(w , r)
 	}))
 
 	http.HandleFunc("/filelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if flashFlagFileExists() {
-			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-			os.Exit(0)
-		}
+		// if flashFlagFileExists() {
+		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		// 	os.Exit(0)
+		// }
 		handleFileList(*dirPtr, w, r)
 	}))
 
 	http.HandleFunc("/rfilelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if flashFlagFileExists() {
-			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-			os.Exit(0)
-		}
+		// if flashFlagFileExists() {
+		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		// 	os.Exit(0)
+		// }
 		handlerFileList(*dirRtr, w, r)
 	}))
 
 	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 
-		if flashFlagFileExists() {
-			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-			os.Exit(0)
-		}
+		// if flashFlagFileExists() {
+		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		// 	os.Exit(0)
+		// }
 
 		switch r.Method {
 		case http.MethodGet:
@@ -457,10 +457,10 @@ func main() {
 
 	http.HandleFunc("/rfiles", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 
-		if flashFlagFileExists() {
-			respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-			os.Exit(0)
-		}
+		// if flashFlagFileExists() {
+		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+		// 	os.Exit(0)
+		// }
 
 		switch r.Method {
 		case http.MethodGet:
