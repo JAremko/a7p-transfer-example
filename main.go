@@ -103,10 +103,10 @@ func respondWithError(w http.ResponseWriter, code int, message string) {
 }
 
 func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 	w.Header().Set("Cache-Control", "no-store")
 	safePath := path.Clean(r.URL.Path)
 	filePath := path.Join("/www", safePath)
@@ -114,10 +114,10 @@ func handleStaticFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	w.Header().Set("Cache-Control", "no-store")
 
@@ -199,10 +199,10 @@ func handlerFileList(dir string, w http.ResponseWriter, r *http.Request) {
 
 
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	w.Header().Set("Cache-Control", "no-store")
 
@@ -243,10 +243,10 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetrFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	w.Header().Set("Cache-Control", "no-store")
 
@@ -269,10 +269,10 @@ func handleGetrFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
 	if err != nil {
@@ -312,10 +312,10 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePutrFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
 	if err != nil {
@@ -341,10 +341,10 @@ func handlePutrFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
 	if err != nil {
@@ -363,10 +363,10 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleterFile(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
+	// if flagFileExists() {
+	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
+	// 	return
+	// }
 
 	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
 	if err != nil {
