@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,6 +26,11 @@ import (
 )
 
 var v *protovalidate.Validator
+
+type ImageInfo struct {
+	FileName  string `json:"fileName"`
+	Base64Str string `json:"base64Str"`
+}
 
 func ValidatorInit() {
 	var err error
@@ -155,49 +162,6 @@ func handleFileList(dir string, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handlerFileList(dir string, w http.ResponseWriter, r *http.Request) {
-	if flagrFileExists() {
-		respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-store")
-
-	switch r.Method {
-	case http.MethodGet:
-		files, err := ioutil.ReadDir(dir)
-		if err != nil {
-			log.Printf("Error reading directory: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Server error")
-			return
-		}
-
-		var fileNames []string
-		for _, file := range files {
-			if strings.HasSuffix(file.Name(), ".tar") {
-				fileNames = append(fileNames, file.Name())
-			}
-		}
-
-		json.NewEncoder(w).Encode(fileNames)
-
-	case http.MethodPost:
-		// Creating or touching the /tmp/refresh_file_list flag file
-		_, err := os.OpenFile("/tmp/refresh_reticle_file_list", os.O_RDONLY|os.O_CREATE, 0644)
-		if err != nil {
-			log.Printf("Error creating/touching flag file: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Server error")
-			return
-		}
-
-		w.Write([]byte("Flag file created/refreshed"))
-
-	default:
-		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
-	}
-}
-
-
 func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 	// if flagFileExists() {
 	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
@@ -240,32 +204,6 @@ func handleGetFile(dir string, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(content)
-}
-
-func handleGetrFile(dir string, w http.ResponseWriter, r *http.Request) {
-	// if flagFileExists() {
-	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-	// 	return
-	// }
-
-	w.Header().Set("Cache-Control", "no-store")
-
-	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
-	if err != nil {
-		log.Printf("Invalid filename: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Invalid filename")
-		return
-	}
-
-	data, err := ioutil.ReadFile(filepath.Join(dir, filename))
-	if err != nil {
-		log.Printf("Error reading file: %v", err)
-		respondWithError(w, http.StatusNotFound, "File not found")
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(data)
 }
 
 func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
@@ -311,35 +249,6 @@ func handlePutFile(dir string, w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func handlePutrFile(dir string, w http.ResponseWriter, r *http.Request) {
-	// if flagFileExists() {
-	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-	// 	return
-	// }
-
-	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
-	if err != nil {
-		log.Printf("Invalid filename: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Invalid filename")
-		return
-	}
-
-	content, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("Error reading request body: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Bad request")
-		return
-	}
-
-	if err := ioutil.WriteFile(filepath.Join(dir, filename), content, 0644); err != nil {
-		log.Printf("Error writing file: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Server error")
-		return
-	}
-
-	w.Write([]byte("OK"))
-}
-
 func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 	// if flagFileExists() {
 	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
@@ -347,28 +256,6 @@ func handleDeleteFile(dir string, w http.ResponseWriter, r *http.Request) {
 	// }
 
 	filename, err := sanitizeFilename(r.URL.Query().Get("filename"))
-	if err != nil {
-		log.Printf("Invalid filename: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Invalid filename")
-		return
-	}
-
-	if err := os.Remove(filepath.Join(dir, filename)); err != nil {
-		log.Printf("Error deleting file: %v", err)
-		respondWithError(w, http.StatusNotFound, "File not found")
-		return
-	}
-
-	w.Write([]byte("OK"))
-}
-
-func handleDeleterFile(dir string, w http.ResponseWriter, r *http.Request) {
-	// if flagFileExists() {
-	// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-	// 	return
-	// }
-
-	filename, err := sanitizerFilename(r.URL.Query().Get("filename"))
 	if err != nil {
 		log.Printf("Invalid filename: %v", err)
 		respondWithError(w, http.StatusBadRequest, "Invalid filename")
@@ -399,11 +286,310 @@ func corsMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 		handler(w, r)
 	}
 }
+
+func getReticlesList(dir string, w http.ResponseWriter, r *http.Request) {
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		log.Printf("Error reading reticles directory: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	var reticleNames []string
+	for _, file := range files {
+		if file.IsDir() {
+			reticleNames = append(reticleNames, file.Name())
+		}
+	}
+
+	json.NewEncoder(w).Encode(reticleNames)
+}
+
+func handleGetReticle(dir string, w http.ResponseWriter, r *http.Request) {
+	folderName := r.URL.Query().Get("folderName")
+	folderPath := filepath.Join(dir, folderName)
+
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		respondWithError(w, http.StatusNotFound, "Reticle folder not found")
+		return
+	}
+
+	files, err := os.ReadDir(folderPath)
+	if err != nil {
+		log.Printf("Error reading reticle folder: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	var images []ImageInfo
+	for _, file := range files {
+		if !file.IsDir() {
+			imagePath := filepath.Join(folderPath, file.Name())
+			imageBytes, err := os.ReadFile(imagePath)
+			if err != nil {
+				log.Printf("Error reading image: %v", err)
+				respondWithError(w, http.StatusInternalServerError, "Server error")
+				return
+			}
+
+			imageInfo := ImageInfo{
+				FileName:  file.Name(),
+				Base64Str: base64.StdEncoding.EncodeToString(imageBytes),
+			}
+			images = append(images, imageInfo)
+		}
+	}
+
+	json.NewEncoder(w).Encode(images)
+}
+
+func handlePutReticle(dir string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		log.Printf("Failed to read request body: %v\n", err)
+		return
+	}
+
+	var req []struct {
+		FileName  string `json:"fileName"`
+		Base64Str string `json:"base64Str"`
+	}
+
+	if err := json.Unmarshal(data, &req); err != nil {
+		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
+		log.Printf("Failed to parse JSON data: %v\n", err)
+		return
+	}
+
+	folderName := r.URL.Query().Get("folderName")
+	if folderName == "" {
+		http.Error(w, "Missing foldername parameter", http.StatusBadRequest)
+		return
+	}
+
+	if matched, _ := regexp.MatchString("^[a-zA-Z0-9][a-zA-Z0-9_.\\- ]*$", folderName); !matched {
+		http.Error(w, "Invalid folderName parameter", http.StatusBadRequest)
+		return
+	}
+
+	folderPath := filepath.Join(dir, folderName)
+
+	_, err = os.Stat(folderPath)
+	if os.IsNotExist(err) {
+		err := os.MkdirAll(folderPath, 0755)
+		if err != nil {
+			http.Error(w, "Failed to create folder", http.StatusInternalServerError)
+			log.Printf("Failed to create folder: %v\n", err)
+			return
+		}
+	}
+
+	for _, item := range req {
+		validFileNames := map[string]bool{"1": true, "2": true, "3": true, "4": true, "6": true}
+		if !validFileNames[item.FileName] {
+			http.Error(w, "Invalid fileName parameter", http.StatusBadRequest)
+			return
+		}
+
+		dec := base64.NewDecoder(base64.StdEncoding, strings.NewReader(item.Base64Str))
+		f, err := os.Create(folderPath + "/" + item.FileName + ".bmp")
+		if err != nil {
+			http.Error(w, "Failed to create file", http.StatusInternalServerError)
+			log.Printf("Failed to create file: %v\n", err)
+			return
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(f, dec); err != nil {
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			log.Printf("Failed to save file: %v\n", err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte("Files uploaded and saved"))
+}
+
+func handleDeleteReticleFolder(dir string, w http.ResponseWriter, r *http.Request) {
+	folderName := r.URL.Query().Get("folderName")
+	folderPath := filepath.Join(dir, folderName)
+
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		respondWithError(w, http.StatusNotFound, "Reticle folder not found")
+		return
+	}
+
+	if err := os.RemoveAll(folderPath); err != nil {
+		log.Printf("Error deleting reticle folder: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	w.Write([]byte("OK"))
+}
+
+func deleteReticle(dir string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	folderName := r.URL.Query().Get("folderName")
+	if folderName == "" {
+		http.Error(w, "Missing folderName parameter", http.StatusBadRequest)
+		return
+	}
+
+	folderPath := filepath.Join(dir, folderName)
+
+	_, err := os.Stat(folderPath)
+	if os.IsNotExist(err) {
+		http.Error(w, "Folder does not exist", http.StatusNotFound)
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		log.Printf("Failed to read request body: %v\n", err)
+		return
+	}
+
+	var filesToDelete []string
+
+	if err := json.Unmarshal(data, &filesToDelete); err != nil {
+		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
+		log.Printf("Failed to parse JSON data: %v\n", err)
+		return
+	}
+
+	for _, fileName := range filesToDelete {
+		filePath := folderPath + "/" + fileName + ".bmp"
+		err := os.Remove(filePath)
+		if err != nil {
+			http.Error(w, "Failed to delete file", http.StatusInternalServerError)
+			log.Printf("Failed to delete file: %v\n", err)
+			return
+		}
+	}
+
+	files, err := os.ReadDir(folderPath)
+	if err != nil {
+		http.Error(w, "Failed to list files in the folder", http.StatusInternalServerError)
+		log.Printf("Failed to list files in the folder: %v\n", err)
+		return
+	}
+
+	if len(files) == 0 {
+		err := os.Remove(folderPath)
+		if err != nil {
+			http.Error(w, "Failed to delete folder", http.StatusInternalServerError)
+			log.Printf("Failed to delete folder: %v\n", err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Files deleted"))
+}
+
+func replaceFile(dir string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		log.Printf("Failed to read request body: %v\n", err)
+		return
+	}
+
+	var req struct {
+		OriginalFileName  string `json:"originalFileName"`
+		OriginalBase64Str string `json:"originalBase64Str"`
+		NewFileName       string `json:"newFileName"`
+		NewBase64Str      string `json:"newBase64Str"`
+	}
+
+	if err := json.Unmarshal(data, &req); err != nil {
+		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
+		log.Printf("Failed to parse JSON data: %v\n", err)
+		return
+	}
+
+	if req.OriginalFileName == req.NewFileName && req.OriginalBase64Str == req.NewBase64Str {
+		http.Error(w, "Parameters are identical", http.StatusBadRequest)
+		return
+	}
+
+	folderName := r.URL.Query().Get("folderName")
+
+	if matched, _ := regexp.MatchString("^[a-zA-Z0-9][a-zA-Z0-9_.\\- ]*$", folderName); !matched {
+		http.Error(w, "Invalid folderName parameter", http.StatusBadRequest)
+		return
+	}
+
+	folderPath := filepath.Join(dir, folderName)
+
+	originalFilePath := folderPath + "/" + req.OriginalFileName + ".bmp"
+
+	if req.OriginalFileName == req.NewFileName {
+		decodedData, err := base64.StdEncoding.DecodeString(req.NewBase64Str)
+		if err != nil {
+			http.Error(w, "Failed to decode base64 data for the new file", http.StatusBadRequest)
+			log.Printf("Failed to decode base64 data for the new file: %v\n", err)
+			return
+		}
+
+		err = os.WriteFile(originalFilePath, decodedData, 0644)
+		if err != nil {
+			http.Error(w, "Failed to replace file", http.StatusInternalServerError)
+			log.Printf("Failed to replace file: %v\n", err)
+			return
+		}
+	} else {
+		err := os.Remove(originalFilePath)
+		if err != nil {
+			http.Error(w, "Failed to delete original file", http.StatusInternalServerError)
+			log.Printf("Failed to delete original file: %v\n", err)
+			return
+		}
+
+		newFilePath := folderPath + "/" + req.NewFileName + ".bmp"
+		decodedData, err := base64.StdEncoding.DecodeString(req.NewBase64Str)
+		if err != nil {
+			http.Error(w, "Failed to decode base64 data for the new file", http.StatusBadRequest)
+			log.Printf("Failed to decode base64 data for the new file: %v\n", err)
+			return
+		}
+
+		err = os.WriteFile(newFilePath, decodedData, 0644)
+		if err != nil {
+			http.Error(w, "Failed to create new file", http.StatusInternalServerError)
+			log.Printf("Failed to create new file: %v\n", err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("File replaced successfully"))
+}
+
 func main() {
 	ValidatorInit()
 
 	dirPtr := flag.String("dir", "/usr/mmcdata/mmcblk2p8/profiles/", "directory to serve")
-	dirRtr := flag.String("rdir", "/usr/mmcdata/mmcblk2p8/reticles_tar/", "directory to serve")
+	dirRtr := flag.String("rdir", "/usr/mmcdata/mmcblk2p8/reticles/", "directёry to serve")
 	flag.Parse()
 
 	//dirPtr := "/usr/mmcdata/mmcblk2p8/profiles/"
@@ -416,7 +602,7 @@ func main() {
 		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
 		// 	os.Exit(0)
 		// }
-		handleStaticFiles(w , r)
+		handleStaticFiles(w, r)
 	}))
 
 	http.HandleFunc("/filelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -425,14 +611,6 @@ func main() {
 		// 	os.Exit(0)
 		// }
 		handleFileList(*dirPtr, w, r)
-	}))
-
-	http.HandleFunc("/rfilelist", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		// if flashFlagFileExists() {
-		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		// 	os.Exit(0)
-		// }
-		handlerFileList(*dirRtr, w, r)
 	}))
 
 	http.HandleFunc("/files", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -454,27 +632,29 @@ func main() {
 		}
 	}))
 
-
-	http.HandleFunc("/rfiles", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-
-		// if flashFlagFileExists() {
-		// 	respondWithError(w, http.StatusServiceUnavailable, "Server is busy")
-		// 	os.Exit(0)
-		// }
-
-		switch r.Method {
-		case http.MethodGet:
-			handleGetrFile(*dirRtr, w, r)
-		case http.MethodPut:
-			handlePutrFile(*dirRtr, w, r)
-		case http.MethodDelete:
-			handleDeleterFile(*dirRtr, w, r)
-		default:
-			respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
-		}
+	http.HandleFunc("/getReticlesList", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		getReticlesList(*dirRtr, w, r)
 	}))
 
+	http.HandleFunc("/getReticleImages", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		handleGetReticle(*dirRtr, w, r)
+	}))
 
+	http.HandleFunc("/uploadReticleImages", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		handlePutReticle(*dirRtr, w, r)
+	}))
+
+	http.HandleFunc("/deleteReticleFolder", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		handleDeleteReticleFolder(*dirRtr, w, r)
+	}))
+
+	http.HandleFunc("/deleteReticle", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		deleteReticle(*dirRtr, w, r)
+	}))
+
+	http.HandleFunc("/replaceFile", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		replaceFile(*dirRtr, w, r)
+	}))
 
 	// Start the goroutine that checks for /tmp/foobar.txt
 	shutdownCh := make(chan struct{})
