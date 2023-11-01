@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+
+package proftabl;
+
+
+message Payload {
+  Profile profile = 1;
+}
+
+
+message Profile {
+  string profile_name = 1;
+  string cartridge_name = 2;
+  string short_name_top = 4;
+  string short_name_bot = 5;
+}
+
+
+message ProfileList {
+  repeated ProfileListEntry profile_desc = 1;
+  int32 activeprofile = 2;
+}
+
+message ProfileListEntry {
+  string profile_name = 1;
+  string cartridge_name = 2;
+  string short_name_top = 3;
+  string short_name_bot = 4;
+  string file_path = 5;
+}
