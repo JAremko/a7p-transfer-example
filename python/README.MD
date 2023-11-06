@@ -1,12 +1,14 @@
 # Table of Contents
 
-- [Description](#project-overview)
+- [Description](#description)
 - [Instalation](#instalation)
 - [Usage](#usage)
+- [Gallery](#gallery)
 
 ## Description
 
-Simple python3 wrapper for .a7p files
+Simple python3 wrapper for .a7p files \
+**[Project homepage](https://github.com/o-murphy/a7p)**
 
 ## Instalation
 
@@ -17,7 +19,7 @@ pip install a7p
 
 #### or latest from repository:
 ```bash
-git clone https://github.com/o-murphy/a7p_transfer_example
+git clone https://github.com/o-murphy/a7p
 cd a7p_transfer_example/a7p_py
 python setup.py install
 ```
@@ -65,6 +67,9 @@ payload = A7PFactory(
     ),
     distances=A7PFactory.DistanceTable.LONG_RANGE
 )
-with open('data/test.a7p', 'rb') as fp:
+with open('data/test.a7p', 'wb') as fp:
     A7PFile.dump(payload, fp)
 ```
+
+## Gallery
+Latest updates available at **[JsDelivr CDN](https://cdn.jsdelivr.net/gh/o-murphy/a7p/gallery/)**
