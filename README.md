@@ -8,6 +8,7 @@
 - [main.go](#maingo)
 - [main.js](#mainjs)
 - [index.html](#indexhtml)
+- [python3 module](python/README.md)
 
 ![Screenshot](screenshot.png)
 
