@@ -51,7 +51,7 @@ message Profile {
 	string bullet_name = 3 [(buf.validate.field).string.max_len = 50];
 	string short_name_top = 4 [(buf.validate.field).string.max_len = 8];
 	string short_name_bot = 5 [(buf.validate.field).string.max_len = 8];
-	string user_note = 6 [(buf.validate.field).string.max_len = 250];
+	string user_note = 6 [(buf.validate.field).string.max_len = 1024];
 	int32 zero_x = 7 [(buf.validate.field).int32.gte = -600000, (buf.validate.field).int32.lte = 600000];
 	int32 zero_y = 8 [(buf.validate.field).int32.gte = -600000, (buf.validate.field).int32.lte = 600000];
 	int32 sc_height = 9 [(buf.validate.field).int32.gte = -5000, (buf.validate.field).int32.lte = 5000];
